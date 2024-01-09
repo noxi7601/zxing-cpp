@@ -40,7 +40,7 @@ RSSExp.:  v?-74d/?-41c
 
 namespace ZXing {
 
-class DecodeHints;
+class ReaderOptions;
 
 namespace OneD {
 
@@ -51,11 +51,11 @@ namespace OneD {
 class RowReader
 {
 protected:
-	const DecodeHints& _hints;
+	const ReaderOptions& _opts;
 
 public:
-	explicit RowReader(const DecodeHints& hints) : _hints(hints) {}
-	explicit RowReader(DecodeHints&& hints) = delete;
+	explicit RowReader(const ReaderOptions& opts) : _opts(opts) {}
+	explicit RowReader(ReaderOptions&&) = delete;
 
 	struct DecodingState
 	{
@@ -79,8 +79,8 @@ public:
 	template <typename CP, typename PP>
 	static float PatternMatchVariance(const CP* counters, const PP* pattern, size_t length, float maxIndividualVariance)
 	{
-		int total = std::accumulate(counters, counters+length, 0);
-		int patternLength = std::accumulate(pattern, pattern+length, 0);
+		int total = Reduce(counters, counters + length, 0);
+		int patternLength = Reduce(pattern, pattern + length, 0);
 		if (total < patternLength) {
 			// If we don't even have one pixel per unit of bar width, assume this is too small
 			// to reliably match, so fail:

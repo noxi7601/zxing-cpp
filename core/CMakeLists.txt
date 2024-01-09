@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
 
-project (ZXing VERSION "2.0.0")
+project (ZXing VERSION "2.2.1")
 set (ZXING_SONAME 3) # see https://github.com/zxing-cpp/zxing-cpp/issues/333
 
 include(../zxing.cmake)
@@ -22,6 +22,11 @@ if (WINRT)
         -DWINRT
     )
 endif()
+if (MSVC)
+    set (ZXING_CORE_DEFINES ${ZXING_CORE_DEFINES}
+        /Zc:__cplusplus
+    )
+endif()
 
 set (ZXING_CORE_LOCAL_DEFINES
     $<$<BOOL:${BUILD_READERS}>:-DZXING_BUILD_READERS>
@@ -34,7 +39,6 @@ if (MSVC)
         -D_CRT_SECURE_NO_WARNINGS
         -D_CRT_NONSTDC_NO_WARNINGS
         -DNOMINMAX
-        /Zc:__cplusplus
     )
 else()
     set (ZXING_CORE_LOCAL_DEFINES ${ZXING_CORE_LOCAL_DEFINES}
@@ -101,7 +105,7 @@ if (BUILD_READERS)
         src/Content.h
         src/Content.cpp
         src/DecodeHints.h
-        src/DecodeHints.cpp
+        $<$<BOOL:${BUILD_SHARED_LIBS}>:src/DecodeHints.cpp> # [[deprecated]]
         src/DecoderResult.h
         src/DetectorResult.h
         src/Error.h
@@ -119,6 +123,7 @@ if (BUILD_READERS)
         src/PerspectiveTransform.h
         src/PerspectiveTransform.cpp
         src/Reader.h
+        src/ReaderOptions.h
         src/ReadBarcode.h
         src/ReadBarcode.cpp
         src/ReedSolomonDecoder.h
@@ -168,6 +173,7 @@ if (BUILD_READERS)
         src/Point.h
         src/Quadrilateral.h
         src/ReadBarcode.h
+        src/ReaderOptions.h
         src/Result.h
         src/StructuredAppend.h
     )
@@ -283,6 +289,8 @@ if (BUILD_READERS)
         src/oned/ODDataBarExpandedBitDecoder.cpp
         src/oned/ODDataBarExpandedReader.h
         src/oned/ODDataBarExpandedReader.cpp
+        src/oned/ODDXFilmEdgeReader.h
+        src/oned/ODDXFilmEdgeReader.cpp
         src/oned/ODITFReader.h
         src/oned/ODITFReader.cpp
         src/oned/ODMultiUPCEANReader.h
@@ -478,22 +486,9 @@ endif()
 
 set_target_properties(ZXing PROPERTIES PUBLIC_HEADER "${PUBLIC_HEADERS}")
 
-if (APPLE AND BUILD_APPLE_FRAMEWORK)
-    set_target_properties(ZXing PROPERTIES
-        FRAMEWORK TRUE
-        FRAMEWORK_VERSION "C"
-        XCODE_ATTRIBUTE_DEFINES_MODULE YES
-        XCODE_ATTRIBUTE_BUILD_LIBRARY_FOR_DISTRIBUTION YES
-        XCODE_ATTRIBUTE_MODULEMAP_FILE "wrappers/ios/Sources/Wrapper/module.modulemap"
-        XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC YES
-        MACOSX_FRAMEWORK_IDENTIFIER "com.zxing-cpp.ios"
-        CMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH NO
-        #MACOSX_FRAMEWORK_INFO_PLIST Info.plist
-        PUBLIC_HEADER "${PUBLIC_HEADERS}"
-        XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "iPhone Developer"
-        XCODE_ATTRIBUTE_ENABLE_BITCODE "NO"
-    )
-endif()
+target_precompile_headers(ZXing PRIVATE ${PUBLIC_HEADERS})
+set_source_files_properties(src/libzueci/zueci.c PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+set_source_files_properties(src/DecodeHints.cpp PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
 
 include (GNUInstallDirs)
 

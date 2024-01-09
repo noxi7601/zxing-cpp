@@ -1,8 +1,13 @@
-zxing_add_package(GTest googletest https://github.com/google/googletest.git release-1.11.0)
+zxing_add_package(GTest googletest https://github.com/google/googletest.git v1.14.0)
 
 if (GTest_POPULATED)
     # don't install gtest stuff on "make install"
     set (INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+endif()
+
+if (MSVC)
+    # default to UTF-8
+    add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 endif()
 
 # Our executable
@@ -62,6 +67,7 @@ add_executable (UnitTest
     qrcode/QRModeTest.cpp
     qrcode/QRVersionTest.cpp
     qrcode/QRWriterTest.cpp
+    qrcode/RMQRDecoderTest.cpp
     pdf417/PDF417DecoderTest.cpp
     pdf417/PDF417ErrorCorrectionTest.cpp
     pdf417/PDF417HighLevelEncoderTest.cpp
@@ -72,5 +78,7 @@ add_executable (UnitTest
 target_include_directories (UnitTest PRIVATE .)
 
 target_link_libraries (UnitTest ZXing::ZXing GTest::gtest_main GTest::gmock)
+
+#target_precompile_headers(UnitTest PRIVATE ${CMAKE_SOURCE_DIR}/core/src/ReadBarcode.h)
 
 add_test(NAME UnitTest COMMAND UnitTest)

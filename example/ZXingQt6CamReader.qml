@@ -22,7 +22,7 @@ Window {
 
     Timer {
         id: resetInfo
-        interval: 2000
+        interval: 1000
     }
 
     BarcodeReader {
@@ -32,7 +32,9 @@ Window {
         formats: (linearSwitch.checked ? (ZXing.LinearCodes) : ZXing.None) | (matrixSwitch.checked ? (ZXing.MatrixCodes) : ZXing.None)
         tryRotate: tryRotateSwitch.checked
         tryHarder: tryHarderSwitch.checked
+        tryInvert: tryInvertSwitch.checked
         tryDownscale: tryDownscaleSwitch.checked
+        textMode: ZXing.TextMode.HRI
 
         // callback with parameter 'result', called for every successfully processed frame
         // onFoundBarcode: {}
@@ -43,11 +45,13 @@ Window {
                     ? [result.position.topLeft, result.position.topRight, result.position.bottomRight, result.position.bottomLeft]
                     : nullPoints
 
-            if (result.isValid)
+            if (result.isValid) {
                 resetInfo.restart()
+                info.text = qsTr("Format: \t %1 \nText: \t %2 \nType: \t %3 \nTime: \t %4 ms").arg(result.formatName).arg(result.text).arg(result.contentTypeName).arg(result.runTime)
+            }
 
-            if (result.isValid || !resetInfo.running)
-                info.text = qsTr("Format: \t %1 \nText: \t %2 \nError: \t %3 \nTime: \t %4 ms").arg(result.formatName).arg(result.text).arg(result.status).arg(result.runTime)
+            if (!resetInfo.running)
+                info.text = "No barcode found"
 
 //            console.log(result)
         }
@@ -86,7 +90,7 @@ Window {
                 id: camerasComboBox
                 Layout.fillWidth: true
                 model: devices.videoInputs
-                textRole: "displayName"
+                textRole: "description"
                 currentIndex: 0
             }
         }
@@ -96,36 +100,71 @@ Window {
             Layout.fillHeight: true
             Layout.fillWidth: true
 
-//            Shape {
-//                id: polygon
-//                anchors.fill: parent
-//                visible: points.length == 4
-//                ShapePath {
-//                    strokeWidth: 3
-//                    strokeColor: "red"
-//                    strokeStyle: ShapePath.SolidLine
-//                    fillColor: "transparent"
-//                    //TODO: really? I don't know qml...
-//                    startX: videoOutput.mapPointToItem(points[3]).x
-//                    startY: videoOutput.mapPointToItem(points[3]).y
-//                    PathLine {
-//                        x: videoOutput.mapPointToItem(points[0]).x
-//                        y: videoOutput.mapPointToItem(points[0]).y
-//                    }
-//                    PathLine {
-//                        x: videoOutput.mapPointToItem(points[1]).x
-//                        y: videoOutput.mapPointToItem(points[1]).y
-//                    }
-//                    PathLine {
-//                        x: videoOutput.mapPointToItem(points[2]).x
-//                        y: videoOutput.mapPointToItem(points[2]).y
-//                    }
-//                    PathLine {
-//                        x: videoOutput.mapPointToItem(points[3]).x
-//                        y: videoOutput.mapPointToItem(points[3]).y
-//                    }
-//                }
-//            }
+            function mapPointToItem(point)
+            {
+                if (videoOutput.sourceRect.width === 0 || videoOutput.sourceRect.height === 0)
+                    return Qt.point(0, 0);
+
+                let dx = point.x;
+                let dy = point.y;
+
+                if ((videoOutput.orientation % 180) == 0)
+                {
+                    dx = dx * videoOutput.contentRect.width / videoOutput.sourceRect.width;
+                    dy = dy * videoOutput.contentRect.height / videoOutput.sourceRect.height;
+                }
+                else
+                {
+                    dx = dx * videoOutput.contentRect.height / videoOutput.sourceRect.height;
+                    dy = dx * videoOutput.contentRect.width / videoOutput.sourceRect.width;
+                }
+
+                switch ((videoOutput.orientation + 360) % 360)
+                {
+                    case 0:
+                    default:
+                        return Qt.point(videoOutput.contentRect.x + dx, videoOutput.contentRect.y + dy);
+                    case 90:
+                        return Qt.point(videoOutput.contentRect.x + dy, videoOutput.contentRect.y + videoOutput.contentRect.height - dx);
+                    case 180:
+                        return Qt.point(videoOutput.contentRect.x + videoOutput.contentRect.width - dx, videoOutput.contentRect.y + videoOutput.contentRect.height -dy);
+                    case 270:
+                        return Qt.point(videoOutput.contentRect.x + videoOutput.contentRect.width - dy, videoOutput.contentRect.y + dx);
+                }
+            }
+
+            Shape {
+                id: polygon
+                anchors.fill: parent
+                visible: points.length === 4
+
+                ShapePath {
+                    strokeWidth: 3
+                    strokeColor: "red"
+                    strokeStyle: ShapePath.SolidLine
+                    fillColor: "transparent"
+                    //TODO: really? I don't know qml...
+                    startX: videoOutput.mapPointToItem(points[3]).x
+                    startY: videoOutput.mapPointToItem(points[3]).y
+
+                    PathLine {
+                        x: videoOutput.mapPointToItem(points[0]).x
+                        y: videoOutput.mapPointToItem(points[0]).y
+                    }
+                    PathLine {
+                        x: videoOutput.mapPointToItem(points[1]).x
+                        y: videoOutput.mapPointToItem(points[1]).y
+                    }
+                    PathLine {
+                        x: videoOutput.mapPointToItem(points[2]).x
+                        y: videoOutput.mapPointToItem(points[2]).y
+                    }
+                    PathLine {
+                        x: videoOutput.mapPointToItem(points[3]).x
+                        y: videoOutput.mapPointToItem(points[3]).y
+                    }
+                }
+            }
 
             Label {
                 id: info
@@ -140,6 +179,7 @@ Window {
 
                 Switch {id: tryRotateSwitch; text: qsTr("Try Rotate"); checked: true }
                 Switch {id: tryHarderSwitch; text: qsTr("Try Harder"); checked: true }
+                Switch {id: tryInvertSwitch; text: qsTr("Try Invert"); checked: true }
                 Switch {id: tryDownscaleSwitch; text: qsTr("Try Downscale"); checked: true }
                 Switch {id: linearSwitch; text: qsTr("Linear Codes"); checked: true }
                 Switch {id: matrixSwitch; text: qsTr("Matrix Codes"); checked: true }
