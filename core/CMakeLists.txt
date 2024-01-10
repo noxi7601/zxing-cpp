@@ -24,7 +24,7 @@ if (WINRT)
 endif()
 if (MSVC)
     set (ZXING_CORE_DEFINES ${ZXING_CORE_DEFINES}
-        /Zc:__cplusplus
+        /Zc:__cplusplus /utf-8
     )
 endif()
 

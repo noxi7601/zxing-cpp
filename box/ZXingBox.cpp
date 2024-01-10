@@ -17,44 +17,45 @@ using namespace ZXing;
 
 extern "C" {
 
-uint8_t* __stdcall QRCodeBuild(int width, int height, int margin, int eccLevel, const char* input) {
-	auto writer = MultiFormatWriter(BarcodeFormat::QRCode).setMargin(margin).setEncoding(CharacterSet::UTF8).setEccLevel(eccLevel);
+#pragma pack(push, 1)
 
-	BitMatrix matrix = writer.encode(input, width, height);
-	auto bitmap = ToMatrix<uint8_t>(matrix);
-	{
-		std::ofstream out("result.dat");
-		if (out.is_open()) {
-			int width_ = bitmap.width();
-			int height_ = bitmap.height();
-			out.write(reinterpret_cast<const char*>(&width_), sizeof(width_));
-			out.write(reinterpret_cast<const char*>(&height_), sizeof(height_));
-			out.write(reinterpret_cast<const char*>(bitmap.data()), bitmap.size());
-			out.close();
-		}
-	}
-	if (bitmap.size() > 0) {
-		int width_ = bitmap.width();
-		int height_ = bitmap.height();
-		int size = sizeof(size) + sizeof(width_) + sizeof(height_) + bitmap.size();
-		uint8_t* result = new uint8_t[size];
-		if (result != NULL) {
-			memcpy(&result[0], &size, sizeof(size));
-			memcpy(&result[sizeof(size)], &width_, sizeof(width_));
-			memcpy(&result[sizeof(size) + sizeof(width_)], &height_, sizeof(height_));
-			memcpy(&result[sizeof(size) + sizeof(width_) + sizeof(height_)], bitmap.data(), bitmap.size());
-		}
+struct CodeData {
+    int size;
+    int width;
+    int height;
+    uint8_t data[1];
+};
 
-		return result;
-	} else {
-		return NULL;
-	}
+#pragma pack(pop)
+
+CodeData* __stdcall CodeBuild(const char* name, int width, int height, int margin, int eccLevel, const char* input) {
+    auto format = BarcodeFormatFromString(name);
+    if (format != BarcodeFormat::None) {
+        auto writer = MultiFormatWriter(format).setMargin(margin).setEncoding(CharacterSet::UTF8).setEccLevel(eccLevel);
+
+        BitMatrix matrix = writer.encode(input, width, height);
+        auto bitmap = ToMatrix<uint8_t>(matrix);
+        if (bitmap.size() > 0) {
+            int size = (sizeof(CodeData) - 1) + bitmap.size();
+            CodeData* result = reinterpret_cast<CodeData*>(new uint8_t[size]);
+            if (result != NULL) {
+                result->size = size;
+                result->width = bitmap.width();
+                result->height = bitmap.height();
+                memcpy(result->data, bitmap.data(), bitmap.size());
+            }
+
+            return result;
+        }
+    }
+
+    return NULL;
 }
 
-void __stdcall QRCodeFree(const char* output) {
-	if (output != NULL) {
-		delete[] output;
-	}
+void __stdcall CodeFree(const CodeData* output) {
+    if (output != NULL) {
+        delete[] output;
+    }
 }
 
-}
+} // extern "C"
