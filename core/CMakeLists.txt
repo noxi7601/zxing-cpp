@@ -23,6 +23,8 @@ if (WINRT)
     )
 endif()
 if (MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
     set (ZXING_CORE_DEFINES ${ZXING_CORE_DEFINES}
         /Zc:__cplusplus /utf-8
     )
