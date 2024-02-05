@@ -80,10 +80,10 @@ public:
 		  _tryInvert(1),
 		  _tryDownscale(1),
 		  _isPure(0),
-		  _tryCode39ExtendedMode(0),
+		  _tryCode39ExtendedMode(1),
 		  _validateCode39CheckSum(0),
 		  _validateITFCheckSum(0),
-		  _returnCodabarStartEnd(0),
+		  _returnCodabarStartEnd(1),
 		  _returnErrors(0),
 		  _downscaleFactor(3),
 		  _eanAddOnSymbol(EanAddOnSymbol::Ignore),
@@ -96,10 +96,10 @@ public:
 #endif
 	{}
 
-#define ZX_PROPERTY(TYPE, GETTER, SETTER) \
+#define ZX_PROPERTY(TYPE, GETTER, SETTER, ...) \
 	TYPE GETTER() const noexcept { return _##GETTER; } \
-	ReaderOptions& SETTER(TYPE v)& { return (void)(_##GETTER = std::move(v)), *this; } \
-	ReaderOptions&& SETTER(TYPE v)&& { return (void)(_##GETTER = std::move(v)), std::move(*this); }
+	__VA_ARGS__ ReaderOptions& SETTER(TYPE v)& { return (void)(_##GETTER = std::move(v)), *this; } \
+	__VA_ARGS__ ReaderOptions&& SETTER(TYPE v)&& { return (void)(_##GETTER = std::move(v)), std::move(*this); }
 
 	/// Specify a set of BarcodeFormats that should be searched for, the default is all supported formats.
 	ZX_PROPERTY(BarcodeFormats, formats, setFormats)
@@ -141,17 +141,17 @@ public:
 	/// The maximum number of symbols (barcodes) to detect / look for in the image with ReadBarcodes
 	ZX_PROPERTY(uint8_t, maxNumberOfSymbols, setMaxNumberOfSymbols)
 
-	/// If true, the Code-39 reader will try to read extended mode.
+	/// Enable the heuristic to detect and decode "full ASCII"/extended Code39 symbols
 	ZX_PROPERTY(bool, tryCode39ExtendedMode, setTryCode39ExtendedMode)
 
-	/// Assume Code-39 codes employ a check digit and validate it.
-	ZX_PROPERTY(bool, validateCode39CheckSum, setValidateCode39CheckSum)
+	/// Deprecated / does nothing. The Code39 symbol has a valid checksum iff symbologyIdentifier()[2] is an odd digit
+	ZX_PROPERTY(bool, validateCode39CheckSum, setValidateCode39CheckSum, [[deprecated]])
 
-	/// Assume ITF codes employ a GS1 check digit and validate it.
-	ZX_PROPERTY(bool, validateITFCheckSum, setValidateITFCheckSum)
+	/// Deprecated / does nothing. The ITF symbol has a valid checksum iff symbologyIdentifier()[2] == '1'.
+	ZX_PROPERTY(bool, validateITFCheckSum, setValidateITFCheckSum, [[deprecated]])
 
-	/// If true, return the start and end chars in a Codabar barcode instead of stripping them.
-	ZX_PROPERTY(bool, returnCodabarStartEnd, setReturnCodabarStartEnd)
+	/// Deprecated / does nothing. Codabar start/stop characters are always returned.
+	ZX_PROPERTY(bool, returnCodabarStartEnd, setReturnCodabarStartEnd, [[deprecated]])
 
 	/// If true, return the barcodes with errors as well (e.g. checksum errors, see @Result::error())
 	ZX_PROPERTY(bool, returnErrors, setReturnErrors)

@@ -3,7 +3,6 @@ cmake_minimum_required(VERSION 3.15)
 project (ZXing VERSION "2.2.1")
 set (ZXING_SONAME 3) # see https://github.com/zxing-cpp/zxing-cpp/issues/333
 
-include(../zxing.cmake)
 if (BUILD_SHARED_LIBS)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif()
@@ -140,8 +139,8 @@ if (BUILD_READERS)
         src/ThresholdBinarizer.h
         src/WhiteRectDetector.h
         src/WhiteRectDetector.cpp
-        $<$<BOOL:${BUILD_C_API}>:${CMAKE_SOURCE_DIR}/wrappers/c/zxing-c.h>
-        $<$<BOOL:${BUILD_C_API}>:${CMAKE_SOURCE_DIR}/wrappers/c/zxing-c.cpp>
+        $<$<BOOL:${BUILD_C_API}>:src/zxing-c.h>
+        $<$<BOOL:${BUILD_C_API}>:src/zxing-c.cpp>
     )
 endif()
 if (BUILD_WRITERS)
@@ -180,7 +179,7 @@ if (BUILD_READERS)
         src/ReaderOptions.h
         src/Result.h
         src/StructuredAppend.h
-        $<$<BOOL:${BUILD_C_API}>:${CMAKE_SOURCE_DIR}/wrappers/c/zxing-c.h>
+        $<$<BOOL:${BUILD_C_API}>:${CMAKE_CURRENT_SOURCE_DIR}/src/zxing-c.h>
     )
 endif()
 if (BUILD_WRITERS)
@@ -491,7 +490,9 @@ endif()
 
 set_target_properties(ZXing PROPERTIES PUBLIC_HEADER "${PUBLIC_HEADERS}")
 
-target_precompile_headers(ZXing PRIVATE ${PUBLIC_HEADERS})
+set(PRECOMPILE_HEADERS ${PUBLIC_HEADERS})
+list(REMOVE_ITEM PRECOMPILE_HEADERS "$<$<BOOL:${BUILD_C_API}>:${CMAKE_CURRENT_SOURCE_DIR}/src/zxing-c.h>")
+target_precompile_headers(ZXing PRIVATE ${PRECOMPILE_HEADERS})
 set_source_files_properties(src/libzueci/zueci.c PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
 set_source_files_properties(src/DecodeHints.cpp PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
 

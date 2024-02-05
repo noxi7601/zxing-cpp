@@ -12,11 +12,18 @@
 #include <exception>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 
 using namespace ZXing;
 
 static thread_local std::string lastErrorMsg;
+
+template<typename R, typename T> R transmute_cast(const T& v)
+{
+	static_assert(sizeof(T) == sizeof(R));
+	return *(const R*)(&v);
+}
 
 static char* copy(std::string_view sv)
 {
@@ -28,14 +35,28 @@ static char* copy(std::string_view sv)
 	return ret;
 }
 
-static Results ReadBarcodesAndSetLastError(const zxing_ImageView* iv, const zxing_ReaderOptions* opts, int maxSymbols)
+static uint8_t* copy(const ByteArray& ba, int* len)
+{
+	*len = Size(ba);
+
+	auto ret = (uint8_t*)malloc(*len + 1);
+	if (ret)
+		memcpy(ret, ba.data(), *len);
+	else
+		*len = 0;
+
+	return ret;
+}
+
+static std::tuple<Results, bool> ReadBarcodesAndSetLastError(const zxing_ImageView* iv, const zxing_ReaderOptions* opts,
+															 int maxSymbols)
 {
 	try {
 		if (iv) {
 			auto o = opts ? *opts : ReaderOptions{};
 			if (maxSymbols)
 				o.setMaxNumberOfSymbols(maxSymbols);
-			return ReadBarcodes(*iv, o);
+			return {ReadBarcodes(*iv, o), true};
 		} else
 			lastErrorMsg = "ImageView param is NULL";
 	} catch (std::exception& e) {
@@ -44,7 +65,7 @@ static Results ReadBarcodesAndSetLastError(const zxing_ImageView* iv, const zxin
 		lastErrorMsg = "Unknown error";
 	}
 
-	return {};
+	return {Results{}, false};
 }
 
 extern "C" {
@@ -56,7 +77,24 @@ zxing_ImageView* zxing_ImageView_new(const uint8_t* data, int width, int height,
 									 int pixStride)
 {
 	ImageFormat cppformat = static_cast<ImageFormat>(format);
-	return new ImageView(data, width, height, cppformat, rowStride, pixStride);
+	try {
+		return new ImageView(data, width, height, cppformat, rowStride, pixStride);
+	} catch (std::exception& e) {
+		lastErrorMsg = e.what();
+	}
+	return NULL;
+}
+
+zxing_ImageView* zxing_ImageView_new_checked(const uint8_t* data, int size, int width, int height, zxing_ImageFormat format,
+											 int rowStride, int pixStride)
+{
+	ImageFormat cppformat = static_cast<ImageFormat>(format);
+	try {
+		return new ImageView(data, size, width, height, cppformat, rowStride, pixStride);
+	} catch (std::exception& e) {
+		lastErrorMsg = e.what();
+	}
+	return NULL;
 }
 
 void zxing_ImageView_delete(zxing_ImageView* iv)
@@ -84,7 +122,7 @@ zxing_BarcodeFormats zxing_BarcodeFormatsFromString(const char* str)
 		return {};
 	try {
 		auto format = BarcodeFormatsFromString(str);
-		return static_cast<zxing_BarcodeFormats>(*reinterpret_cast<BarcodeFormat*>(&format));
+		return static_cast<zxing_BarcodeFormats>(transmute_cast<BarcodeFormat>(format));
 	} catch (std::exception& e) {
 		lastErrorMsg = e.what();
 	} catch (...) {
@@ -129,6 +167,7 @@ ZX_PROPERTY(bool, tryInvert, TryInvert)
 ZX_PROPERTY(bool, tryDownscale, TryDownscale)
 ZX_PROPERTY(bool, isPure, IsPure)
 ZX_PROPERTY(bool, returnErrors, ReturnErrors)
+ZX_PROPERTY(int, minLineCount, MinLineCount)
 ZX_PROPERTY(int, maxNumberOfSymbols, MaxNumberOfSymbols)
 
 void zxing_ReaderOptions_setFormats(zxing_ReaderOptions* opts, zxing_BarcodeFormats formats)
@@ -136,10 +175,10 @@ void zxing_ReaderOptions_setFormats(zxing_ReaderOptions* opts, zxing_BarcodeForm
 	opts->setFormats(static_cast<BarcodeFormat>(formats));
 }
 
-zxing_BarcodeFormats zxing_ReaderOptions_formats(const zxing_ReaderOptions* opts)
+zxing_BarcodeFormats zxing_ReaderOptions_getFormats(const zxing_ReaderOptions* opts)
 {
 	auto v = opts->formats();
-	return *reinterpret_cast<zxing_BarcodeFormats*>(&v);
+	return transmute_cast<zxing_BarcodeFormats>(v);
 }
 
 #define ZX_ENUM_PROPERTY(TYPE, GETTER, SETTER) \
@@ -159,113 +198,93 @@ char* zxing_ContentTypeToString(zxing_ContentType type)
 	return copy(ToString(static_cast<ContentType>(type)));
 }
 
-bool zxing_Result_isValid(const zxing_Result* result)
+char* zxing_PositionToString(zxing_Position position)
 {
-	return result != NULL && result->isValid();
+	return copy(ToString(transmute_cast<Position>(position)));
 }
 
-char* zxing_Result_errorMsg(const zxing_Result* result)
+
+bool zxing_Barcode_isValid(const zxing_Barcode* barcode)
 {
-	return copy(ToString(result->error()));
+	return barcode != NULL && barcode->isValid();
 }
 
-zxing_BarcodeFormat zxing_Result_format(const zxing_Result* result)
+char* zxing_Barcode_errorMsg(const zxing_Barcode* barcode)
 {
-	return static_cast<zxing_BarcodeFormat>(result->format());
+	return copy(ToString(barcode->error()));
 }
 
-zxing_ContentType zxing_Result_contentType(const zxing_Result* result)
+uint8_t* zxing_Barcode_bytes(const zxing_Barcode* barcode, int* len)
 {
-	return static_cast<zxing_ContentType>(result->contentType());
+	return copy(barcode->bytes(), len);
 }
 
-uint8_t* zxing_Result_bytes(const zxing_Result* result, int* len)
+uint8_t* zxing_Barcode_bytesECI(const zxing_Barcode* barcode, int* len)
 {
-	*len = Size(result->bytes());
-
-	auto ret = (uint8_t*)malloc(*len + 1);
-	if (ret)
-		memcpy(ret, result->bytes().data(), *len);
-	else
-		*len = 0;
-
-	return ret;
+	return copy(barcode->bytesECI(), len);
 }
 
-char* zxing_Result_text(const zxing_Result* result)
-{
-	return copy(result->text());
-}
+#define ZX_GETTER(TYPE, GETTER, TRANS) \
+	TYPE zxing_Barcode_##GETTER(const zxing_Barcode* barcode) { return static_cast<TYPE>(TRANS(barcode->GETTER())); }
 
-char* zxing_Result_ecLevel(const zxing_Result* result)
-{
-	return copy(result->ecLevel());
-}
+ZX_GETTER(zxing_BarcodeFormat, format,)
+ZX_GETTER(zxing_ContentType, contentType,)
+ZX_GETTER(char*, text, copy)
+ZX_GETTER(char*, ecLevel, copy)
+ZX_GETTER(char*, symbologyIdentifier, copy)
+ZX_GETTER(zxing_Position, position, transmute_cast<zxing_Position>)
 
-char* zxing_Result_symbologyIdentifier(const zxing_Result* result)
-{
-	return copy(result->symbologyIdentifier());
-}
+ZX_GETTER(int, orientation,)
+ZX_GETTER(bool, hasECI,)
+ZX_GETTER(bool, isInverted,)
+ZX_GETTER(bool, isMirrored,)
+ZX_GETTER(int, lineCount,)
 
-int zxing_Result_orientation(const zxing_Result* result)
-{
-	return result->orientation();
-}
-
-bool zxing_Result_isInverted(const zxing_Result* result)
-{
-	return result->isInverted();
-}
-
-bool zxing_Result_isMirrored(const zxing_Result* result)
-{
-	return result->isMirrored();
-}
 
 /*
  * ZXing/ReadBarcode.h
  */
 
-zxing_Result* zxing_ReadBarcode(const zxing_ImageView* iv, const zxing_ReaderOptions* opts)
+zxing_Barcode* zxing_ReadBarcode(const zxing_ImageView* iv, const zxing_ReaderOptions* opts)
 {
-	auto res = ReadBarcodesAndSetLastError(iv, opts, 1);
+	auto [res, ok] = ReadBarcodesAndSetLastError(iv, opts, 1);
 	return !res.empty() ? new Result(std::move(res.front())) : NULL;
 }
 
-zxing_Results* zxing_ReadBarcodes(const zxing_ImageView* iv, const zxing_ReaderOptions* opts)
+zxing_Barcodes* zxing_ReadBarcodes(const zxing_ImageView* iv, const zxing_ReaderOptions* opts)
 {
-	auto res = ReadBarcodesAndSetLastError(iv, opts, 0);
-	return !res.empty() ? new Results(std::move(res)) : NULL;
+	auto [res, ok] = ReadBarcodesAndSetLastError(iv, opts, 0);
+	return !res.empty() || ok ? new Results(std::move(res)) : NULL;
 }
 
-void zxing_Result_delete(zxing_Result* result)
+void zxing_Barcode_delete(zxing_Barcode* barcode)
 {
-	delete result;
+	delete barcode;
 }
 
-void zxing_Results_delete(zxing_Results* results)
+void zxing_Barcodes_delete(zxing_Barcodes* barcodes)
 {
-	delete results;
+	delete barcodes;
 }
 
-int zxing_Results_size(const zxing_Results* results)
+int zxing_Barcodes_size(const zxing_Barcodes* barcodes)
 {
-	return results ? Size(*results) : 0;
+	return barcodes ? Size(*barcodes) : 0;
 }
 
-const zxing_Result* zxing_Results_at(const zxing_Results* results, int i)
+const zxing_Barcode* zxing_Barcodes_at(const zxing_Barcodes* barcodes, int i)
 {
-	if (!results || i < 0 || i >= Size(*results))
+	if (!barcodes || i < 0 || i >= Size(*barcodes))
 		return NULL;
-	return &(*results)[i];
+	return &(*barcodes)[i];
 }
 
-zxing_Result* zxing_Results_move(zxing_Results* results, int i)
+zxing_Barcode* zxing_Barcodes_move(zxing_Barcodes* barcodes, int i)
 {
-	if (!results || i < 0 || i >= Size(*results))
+	if (!barcodes || i < 0 || i >= Size(*barcodes))
 		return NULL;
 
-	return new Result(std::move((*results)[i]));
+	return new Result(std::move((*barcodes)[i]));
 }
 
 char* zxing_LastErrorMsg()

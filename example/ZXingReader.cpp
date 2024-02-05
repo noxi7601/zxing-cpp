@@ -35,6 +35,8 @@ static void PrintUsage(const char* exePath)
 			  << "               Only detect given format(s) (faster)\n"
 			  << "    -ispure    Assume the image contains only a 'pure'/perfect code (faster)\n"
 			  << "    -errors    Include results with errors (like checksum error)\n"
+			  << "    -binarizer <local|global|fixed>\n"
+			  << "               Binarizer to be used for gray to binary conversion\n"
 			  << "    -mode <plain|eci|hri|escaped>\n"
 			  << "               Text mode used to render the raw byte content into text\n"
 			  << "    -1         Print only file name, content/error on one line per file/barcode (implies '-mode Escaped')\n"
@@ -85,6 +87,17 @@ static bool ParseOptions(int argc, char* argv[], ReaderOptions& options, bool& o
 				std::cerr << e.what() << "\n";
 				return false;
 			}
+		} else if (is("-binarizer")) {
+			if (++i == argc)
+				return false;
+			else if (is("local"))
+				options.setBinarizer(Binarizer::LocalAverage);
+			else if (is("global"))
+				options.setBinarizer(Binarizer::GlobalHistogram);
+			else if (is("fixed"))
+				options.setBinarizer(Binarizer::FixedThreshold);
+			else
+				return false;
 		} else if (is("-mode")) {
 			if (++i == argc)
 				return false;
@@ -118,13 +131,6 @@ static bool ParseOptions(int argc, char* argv[], ReaderOptions& options, bool& o
 	}
 
 	return !filePaths.empty();
-}
-
-std::ostream& operator<<(std::ostream& os, const Position& points)
-{
-	for (const auto& p : points)
-		os << p.x << "x" << p.y << " ";
-	return os;
 }
 
 void drawLine(const ImageView& iv, PointI a, PointI b, bool error)
@@ -234,7 +240,7 @@ int main(int argc, char* argv[])
 					  << "Identifier: " << result.symbologyIdentifier() << "\n"
 					  << "Content:    " << ToString(result.contentType()) << "\n"
 					  << "HasECI:     " << result.hasECI() << "\n"
-					  << "Position:   " << result.position() << "\n"
+					  << "Position:   " << ToString(result.position()) << "\n"
 					  << "Rotation:   " << result.orientation() << " deg\n"
 					  << "IsMirrored: " << result.isMirrored() << "\n"
 					  << "IsInverted: " << result.isInverted() << "\n";
